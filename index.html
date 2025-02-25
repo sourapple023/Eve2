@@ -4,101 +4,109 @@
   <title>AI Helper</title>
   <style>
     body {
-      font-family: sans-serif;
-      margin: 20px;
+      font-family: 'Roboto', sans-serif;
+      background-color: #222;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      flex-direction: column;
+      overflow: hidden;
     }
 
-    #chat-container {
-      border: 1px solid #ccc;
-      padding: 10px;
-      height: 300px;
-      overflow-y: scroll;
-      margin-bottom: 10px;
-    }
-
-    #user-input {
-      width: 100%;
-      padding: 5px;
+    canvas {
+      /* Style the canvas if needed */
     }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/google-auth-library@latest/build/google-auth-library.min.js"></script> </head>
-
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+</head>
 <body>
-  <div id="chat-container">
-    <p><strong>AI:</strong> Hello! How can I help you?</p>
-  </div>
-  <input type="text" id="user-input" placeholder="Type your message...">
-  <button onclick="sendMessage()">Send</button>
+  <script>
+    let numNodes = 50;
+    let nodes =; // Initialize as an empty array
+    let connections =;
+    let orbSize = 100;
+    let orbColor;
+    let thinkingSpeed = 0.02; // Slower animation speed for "thinking"
+    let respondingSpeed = 0.1; // Faster animation speed for "responding"
+    let currentSpeed = thinkingSpeed;
 
-  <script type="module">
-    import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      orbColor = color(0, 0, 255); // Initial orb color (blue)
 
-    async function sendMessage() {
-      var userInput = document.getElementById("user-input");
-      var message = userInput.value;
-      var chatContainer = document.getElementById("chat-container");
-
-      if (message.trim() !== "") {
-        chatContainer.innerHTML += "<p><strong>You:</strong> " + message + "</p>";
-        userInput.value = ""; // Clear input
-
-        // Get AI response using Gemini
-        try {
-          var aiResponse = await getAiResponse(message);
-          chatContainer.innerHTML += "<p><strong>AI:</strong> " + aiResponse + "</p>";
-        } catch (error) {
-          console.error("Error getting AI response:", error);
-          chatContainer.innerHTML += "<p><strong>AI:</strong> Oops! Something went wrong. Please try again later.</p>";
-        }
-
-        chatContainer.scrollTop = chatContainer.scrollHeight; // Scroll to bottom
-      }
-    }
-
-    async function getAiResponse(message) {
-      const apiKey = await accessSecretVersion(); // Get the API key from Secret Manager
-
-      // Use the globally available googleAuth variable from the CDN
-      const auth = new googleAuth.GoogleAuth({
-        scopes: "https://www.googleapis.com/auth/generative.language.v1beta2",
-        credentials: { api_key: apiKey },
-      });
-
-      const { GenerativeAI } = await import("@google/generative-ai");
-      const client = new GenerativeAI({
-        authClient: auth,
-      });
-
-      const response = await client.generateContent({
-        model: "gemini-2.0-flash", // You can choose a different model if needed
-        contents: [message],
-      });
-
-      return response.results.content; // Access the content of the first result
-    }
-
-    async function accessSecretVersion() {
-      try {
-        const client = new SecretManagerServiceClient();
-        const name = `projects/${process.env.PROJECT_ID}/secrets/gemini-api-key/versions/latest`; // Replace with your project ID and secret name
-
-        const [version] = await client.accessSecretVersion({
-          name: name,
+      // Generate nodes
+      for (let i = 0; i < numNodes; i++) {
+        nodes.push({
+          x: random(width),
+          y: random(height),
+          size: random(5, 15),
+          color: color(random(100, 255), random(100, 255), random(100, 255)), // Random initial color
+          targetColor: color(random(100, 255), random(100, 255), random(100, 255)) // Random target color
         });
+      }
 
-        const payload = version.payload.data.toString();
-        return payload; // Return the API key
-      } catch (error) {
-        console.error("Error accessing secret:", error);
-        throw error; // Re-throw the error to be handled elsewhere
+      // Generate connections
+      for (let i = 0; i < numNodes; i++) {
+        for (let j = i + 1; j < numNodes; j++) {
+          if (random() < 0.1) { // 10% chance of connection
+            connections.push({
+              from: i,
+              to: j,
+              color: color(random(100, 255), random(100, 255), random(100, 255)), // Random initial color
+              targetColor: color(random(100, 255), random(100, 255), random(100, 255)) // Random target color
+            });
+          }
+        }
       }
     }
 
-    document.getElementById("user-input").addEventListener("keyup", function (event) {
-      if (event.keyCode === 13) {
-        sendMessage();
+    function draw() {
+      background(34, 34, 34);
+      drawOrb();
+      drawNeuralNetwork();
+    }
+
+    function drawOrb() {
+      // Orb animation
+      orbSize = 100 + sin(frameCount * currentSpeed) * 20;
+      orbColor = lerpColor(color(0, 0, 255), color(100, 100, 100), sin(frameCount * currentSpeed * 2));
+      fill(orbColor);
+      ellipse(width / 2, height / 2, orbSize, orbSize);
+
+      // Flare animation
+      for (let i = 0; i < 5; i++) {
+        let flareAngle = frameCount * currentSpeed * 0.5 + i * TWO_PI / 5;
+        let flareDistance = 150 + sin(frameCount * currentSpeed * 0.5 + i) * 50;
+        let flareColor = lerpColor(color(0, 255, 0), color(255, 0, 0), sin(frameCount * currentSpeed + i));
+        fill(flareColor);
+        ellipse(width / 2 + cos(flareAngle) * flareDistance, height / 2 + sin(flareAngle) * flareDistance, 20, 20);
       }
-    });
+    }
+
+    function drawNeuralNetwork() {
+      // Draw connections
+      for (let i = 0; i < connections.length; i++) {
+        let fromNode = nodes[connections[i].from];
+        let toNode = nodes[connections[i].to];
+        let connectionColor = lerpColor(connections[i].color, connections[i].targetColor, sin(frameCount * currentSpeed * 3 + i));
+        stroke(connectionColor);
+        strokeWeight(2);
+        line(fromNode.x, fromNode.y, toNode.x, toNode.y);
+      }
+
+      // Draw nodes
+      for (let i = 0; i < nodes.length; i++) {
+        let nodeColor = lerpColor(nodes[i].color, nodes[i].targetColor, sin(frameCount * currentSpeed * 3 + i));
+        fill(nodeColor);
+        ellipse(nodes[i].x, nodes[i].y, nodes[i].size, nodes[i].size);
+      }
+    }
+
+    // Simulate state change (thinking vs. responding)
+    setInterval(() => {
+      currentSpeed = currentSpeed === thinkingSpeed ? respondingSpeed : thinkingSpeed;
+    }, 5000); // Switch state every 5 seconds
   </script>
 </body>
 </html>
