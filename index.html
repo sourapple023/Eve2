@@ -1,112 +1,126 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>AI Helper</title>
-  <style>
-    body {
-      font-family: 'Roboto', sans-serif;
-      background-color: #222;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    canvas {
-      /* Style the canvas if needed */
-    }
-  </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced AI Model 3D</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: linear-gradient(to bottom, #111, #222); }
+        canvas { display: block; }
+    </style>
 </head>
 <body>
-  <script>
-    let numNodes = 50;
-    let nodes =; // Initialize as an empty array
-    let connections =;
-    let orbSize = 100;
-    let orbColor;
-    let thinkingSpeed = 0.02; // Slower animation speed for "thinking"
-    let respondingSpeed = 0.1; // Faster animation speed for "responding"
-    let currentSpeed = thinkingSpeed;
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/BloomPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/ConvolutionShader.js"></script>
+    <script>
+        // Initialize scene, camera, and renderer
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
 
-    function setup() {
-      createCanvas(windowWidth, windowHeight);
-      orbColor = color(0, 0, 255); // Initial orb color (blue)
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+        pointLight.position.set(10, 10, 10);
+        scene.add(pointLight);
 
-      // Generate nodes
-      for (let i = 0; i < numNodes; i++) {
-        nodes.push({
-          x: random(width),
-          y: random(height),
-          size: random(5, 15),
-          color: color(random(100, 255), random(100, 255), random(100, 255)), // Random initial color
-          targetColor: color(random(100, 255), random(100, 255), random(100, 255)) // Random target color
+        // Sphere with realistic material
+        const geometry = new THREE.SphereGeometry(5, 64, 64);
+        const material = new THREE.MeshStandardMaterial({
+            color: 0x00ffff,
+            emissive: 0x003333,
+            roughness: 0.2,
+            metalness: 0.5
         });
-      }
+        const sphere = new THREE.Mesh(geometry, material);
+        scene.add(sphere);
 
-      // Generate connections
-      for (let i = 0; i < numNodes; i++) {
-        for (let j = i + 1; j < numNodes; j++) {
-          if (random() < 0.1) { // 10% chance of connection
-            connections.push({
-              from: i,
-              to: j,
-              color: color(random(100, 255), random(100, 255), random(100, 255)), // Random initial color
-              targetColor: color(random(100, 255), random(100, 255), random(100, 255)) // Random target color
-            });
-          }
+        // Particle Trails
+        const particlesGeometry = new THREE.BufferGeometry();
+        const particlesCount = 500;
+        const positions = new Float32Array(particlesCount * 3);
+        const velocities = new Float32Array(particlesCount * 3);
+        for (let i = 0; i < particlesCount * 3; i++) {
+            positions[i] = (Math.random() - 0.5) * 20;
+            velocities[i] = (Math.random() - 0.5) * 0.1;
         }
-      }
-    }
+        particlesGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        particlesGeometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
+        const particlesMaterial = new THREE.PointsMaterial({ color: 0x888888, size: 0.1 });
+        const particles = new THREE.Points(particlesGeometry, particlesMaterial);
+        scene.add(particles);
 
-    function draw() {
-      background(34, 34, 34);
-      drawOrb();
-      drawNeuralNetwork();
-    }
+        // Camera and controls
+        camera.position.z = 20;
+        let isDragging = false;
+        let previousMouseX = 0;
+        document.addEventListener('mousedown', (event) => {
+            isDragging = true;
+            previousMouseX = event.clientX;
+        });
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+        document.addEventListener('mousemove', (event) => {
+            if (isDragging) {
+                const deltaX = event.clientX - previousMouseX;
+                sphere.rotation.y += deltaX * 0.01;
+                previousMouseX = event.clientX;
+            }
+        });
 
-    function drawOrb() {
-      // Orb animation
-      orbSize = 100 + sin(frameCount * currentSpeed) * 20;
-      orbColor = lerpColor(color(0, 0, 255), color(100, 100, 100), sin(frameCount * currentSpeed * 2));
-      fill(orbColor);
-      ellipse(width / 2, height / 2, orbSize, orbSize);
+        // Post-processing (Bloom)
+        const composer = new THREE.EffectComposer(renderer);
+        const renderPass = new THREE.RenderPass(scene, camera);
+        composer.addPass(renderPass);
+        const bloomPass = new THREE.BloomPass(1, 25, 4, 256);
+        composer.addPass(bloomPass);
 
-      // Flare animation
-      for (let i = 0; i < 5; i++) {
-        let flareAngle = frameCount * currentSpeed * 0.5 + i * TWO_PI / 5;
-        let flareDistance = 150 + sin(frameCount * currentSpeed * 0.5 + i) * 50;
-        let flareColor = lerpColor(color(0, 255, 0), color(255, 0, 0), sin(frameCount * currentSpeed + i));
-        fill(flareColor);
-        ellipse(width / 2 + cos(flareAngle) * flareDistance, height / 2 + sin(flareAngle) * flareDistance, 20, 20);
-      }
-    }
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
 
-    function drawNeuralNetwork() {
-      // Draw connections
-      for (let i = 0; i < connections.length; i++) {
-        let fromNode = nodes[connections[i].from];
-        let toNode = nodes[connections[i].to];
-        let connectionColor = lerpColor(connections[i].color, connections[i].targetColor, sin(frameCount * currentSpeed * 3 + i));
-        stroke(connectionColor);
-        strokeWeight(2);
-        line(fromNode.x, fromNode.y, toNode.x, toNode.y);
-      }
+            sphere.scale.setScalar(1 + Math.sin(Date.now() * 0.001) * 0.1);
 
-      // Draw nodes
-      for (let i = 0; i < nodes.length; i++) {
-        let nodeColor = lerpColor(nodes[i].color, nodes[i].targetColor, sin(frameCount * currentSpeed * 3 + i));
-        fill(nodeColor);
-        ellipse(nodes[i].x, nodes[i].y, nodes[i].size, nodes[i].size);
-      }
-    }
+            const positions = particlesGeometry.attributes.position.array;
+            const velocities = particlesGeometry.attributes.velocity.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                positions[i] += velocities[i];
+                positions[i + 1] += velocities[i + 1];
+                positions[i + 2] += velocities[i + 2];
+                if (positions[i] > 25 || positions[i] < -25) velocities[i] *= -1;
+                if (positions[i+1] > 25 || positions[i+1] < -25) velocities[i+1] *= -1;
+                if (positions[i+2] > 25 || positions[i+2] < -25) velocities[i+2] *= -1;
+            }
+            particlesGeometry.attributes.position.needsUpdate = true;
 
-    // Simulate state change (thinking vs. responding)
-    setInterval(() => {
-      currentSpeed = currentSpeed === thinkingSpeed ? respondingSpeed : thinkingSpeed;
-    }, 5000); // Switch state every 5 seconds
-  </script>
+            composer.render(); // Use composer for post-processing
+        }
+        animate();
+
+        // Window resize
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight); //update composer size
+        }
+        window.addEventListener('resize', onWindowResize, false);
+
+        // Debug logging
+        console.log(renderer);
+        console.log(scene);
+        console.log(camera);
+        console.log(sphere);
+        console.log(particles);
+    </script>
 </body>
 </html>
