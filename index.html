@@ -21,7 +21,7 @@
       padding: 5px;
     }
   </style>
-</head>
+  <script src="https://cdn.jsdelivr.net/npm/google-auth-library@latest/build/google-auth-library.min.js"></script> </head>
 
 <body>
   <div id="chat-container">
@@ -31,7 +31,6 @@
   <button onclick="sendMessage()">Send</button>
 
   <script type="module">
-    import { GoogleAuth } from 'google-auth-library';
     import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 
     async function sendMessage() {
@@ -59,7 +58,8 @@
     async function getAiResponse(message) {
       const apiKey = await accessSecretVersion(); // Get the API key from Secret Manager
 
-      const auth = new GoogleAuth({
+      // Use the globally available googleAuth variable from the CDN
+      const auth = new googleAuth.GoogleAuth({
         scopes: "https://www.googleapis.com/auth/generative.language.v1beta2",
         credentials: { api_key: apiKey },
       });
